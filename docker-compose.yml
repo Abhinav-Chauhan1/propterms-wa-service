@@ -1,0 +1,11 @@
+services:
+  wa-service:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    volumes:
+      # auth_info/ lives on the OCI instance disk and persists across restarts
+      - ./auth_info:/app/auth_info

@@ -5,13 +5,14 @@ import { getAuthState, clearAuthState } from './sessionStore.js'
 import { RECONNECT_DELAY_MS } from '../constants.js'
 import logger from '../lib/logger.js'
 
-// Silent logger for Baileys internals — we handle our own logging
 const baileysLogger = pino({ level: 'silent' })
+const MAX_RETRY_DELAY = 5 * 60 * 1000 // cap at 5 minutes
 
 let waSocket = null
 let connectionStatus = 'disconnected'
 let currentQR = null
 let onConnectedCallback = null
+let retryDelay = RECONNECT_DELAY_MS
 
 export function onConnected(fn) {
   onConnectedCallback = fn
@@ -53,6 +54,7 @@ export async function connectToWhatsApp() {
     if (connection === 'open') {
       currentQR = null
       connectionStatus = 'connected'
+      retryDelay = RECONNECT_DELAY_MS // reset backoff on success
       logger.info('WhatsApp connection established')
       if (onConnectedCallback) onConnectedCallback(sock)
     }
@@ -69,12 +71,14 @@ export async function connectToWhatsApp() {
       if (loggedOut || badSession) {
         connectionStatus = 'logged_out'
         currentQR = null
+        retryDelay = RECONNECT_DELAY_MS
         await clearAuthState()
         logger.warn({ statusCode }, 'Session invalid — auth cleared, click Reconnect to scan QR')
       } else {
         connectionStatus = 'disconnected'
-        logger.warn({ statusCode }, `Connection closed — reconnecting in ${RECONNECT_DELAY_MS}ms`)
-        setTimeout(connectToWhatsApp, RECONNECT_DELAY_MS)
+        logger.warn({ statusCode, retryDelay }, `Connection closed — reconnecting in ${retryDelay}ms`)
+        setTimeout(connectToWhatsApp, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY) // exponential backoff, max 5 min
       }
     }
   })
@@ -93,6 +97,7 @@ export async function disconnectWhatsApp() {
 }
 
 export async function reconnectWhatsApp() {
+  retryDelay = RECONNECT_DELAY_MS // reset backoff on manual reconnect
   if (waSocket) {
     try {
       waSocket.end()

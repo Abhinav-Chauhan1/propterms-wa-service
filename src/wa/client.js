@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason } from '@whiskeysockets/baileys'
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import pino from 'pino'
 import { getAuthState, clearAuthState } from './sessionStore.js'
@@ -28,11 +28,13 @@ export function getSocket() {
 
 export async function connectToWhatsApp() {
   const { state, saveCreds } = await getAuthState()
+  const { version } = await fetchLatestBaileysVersion()
 
   connectionStatus = 'connecting'
   currentQR = null
 
   const sock = makeWASocket({
+    version,
     auth: state,
     printQRInTerminal: false,
     logger: baileysLogger,

@@ -1,0 +1,145 @@
+// This schema mirrors tables owned by the main PropTerms Next.js repo.
+// Run `npm run prisma:generate` only — NEVER run prisma migrate from this service.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Read-only views of main PropTerms tables (for DB sync) ──────────────────
+
+model Owner {
+  id    String  @id @default(uuid())
+  name  String
+  phone String?
+}
+
+model Tenant {
+  id    String  @id @default(uuid())
+  name  String
+  phone String?
+}
+
+model Lead {
+  id    String @id @default(uuid())
+  name  String
+  phone String
+}
+
+// ─── WhatsApp Models ──────────────────────────────────────────────────────────
+
+model WaContact {
+  id         String      @id @default(cuid())
+  phone      String      @unique
+  name       String
+  group      WaGroup
+  tags       String[]    @default([])
+  source     WaSource
+  optedOut   Boolean     @default(false)
+  optedOutAt DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  messages   WaMessage[]
+}
+
+model WaTemplate {
+  id        String       @id @default(cuid())
+  name      String
+  category  WaCategory
+  body      String
+  variables String[]     @default([])
+  mediaUrl  String?
+  mediaType WaMediaType?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  campaigns WaCampaign[]
+}
+
+model WaCampaign {
+  id           String           @id @default(cuid())
+  name         String
+  templateId   String
+  template     WaTemplate       @relation(fields: [templateId], references: [id])
+  contactGroup WaGroup?
+  contactIds   String[]         @default([])
+  status       WaCampaignStatus @default(DRAFT)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  total        Int              @default(0)
+  sent         Int              @default(0)
+  failed       Int              @default(0)
+  replied      Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  messages     WaMessage[]
+}
+
+model WaMessage {
+  id          String          @id @default(cuid())
+  campaignId  String?
+  campaign    WaCampaign?     @relation(fields: [campaignId], references: [id])
+  contactId   String
+  contact     WaContact       @relation(fields: [contactId], references: [id])
+  direction   WaDirection
+  body        String
+  mediaUrl    String?
+  status      WaMessageStatus @default(QUEUED)
+  waMessageId String?
+  errorReason String?
+  sentAt      DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime        @default(now())
+}
+
+enum WaGroup {
+  OWNER
+  TENANT
+  LEAD
+  PROSPECT
+}
+
+enum WaSource {
+  MANUAL
+  CSV
+  DB_SYNC
+}
+
+enum WaCategory {
+  INVENTORY
+  OWNER_UPDATE
+  TENANT_NOTICE
+  LEAD_FOLLOWUP
+  GENERAL
+}
+
+enum WaMediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum WaCampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum WaDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum WaMessageStatus {
+  QUEUED
+  SENT
+  FAILED
+  RECEIVED
+}

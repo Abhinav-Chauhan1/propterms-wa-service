@@ -1,0 +1,11 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node src/index.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# IMPORTANT: Configure a Railway Volume mounted at /app/auth_info via the
+# Railway dashboard or CLI so the Baileys session survives redeploys.
+# CLI: railway volume create --mount-path /app/auth_info

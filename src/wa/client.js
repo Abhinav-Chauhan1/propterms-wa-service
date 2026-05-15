@@ -1,7 +1,7 @@
 import makeWASocket, { DisconnectReason } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import pino from 'pino'
-import { getAuthState } from './sessionStore.js'
+import { getAuthState, clearAuthState } from './sessionStore.js'
 import { RECONNECT_DELAY_MS } from '../constants.js'
 import logger from '../lib/logger.js'
 
@@ -60,10 +60,17 @@ export async function connectToWhatsApp() {
     if (connection === 'close') {
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
+      // 405 = WhatsApp rejecting stale/unrecognised credentials (not in DisconnectReason enum)
+      // badSession (500) and connectionReplaced (440) also indicate the saved session is unusable
+      const badSession = statusCode === 405
+        || statusCode === DisconnectReason.badSession
+        || statusCode === DisconnectReason.connectionReplaced
 
-      if (loggedOut) {
+      if (loggedOut || badSession) {
         connectionStatus = 'logged_out'
-        logger.error({ statusCode }, 'Logged out — manual re-auth required, session NOT cleared')
+        currentQR = null
+        await clearAuthState()
+        logger.warn({ statusCode }, 'Session invalid — auth cleared, click Reconnect to scan QR')
       } else {
         connectionStatus = 'disconnected'
         logger.warn({ statusCode }, `Connection closed — reconnecting in ${RECONNECT_DELAY_MS}ms`)
